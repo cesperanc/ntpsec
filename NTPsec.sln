@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTPsec", "NTPsec\NTPsec.csproj", "{CB334AE3-B2B4-4267-9863-BD1327DAD27E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTPsecClient", "NTPsecClient\NTPsecClient.csproj", "{3EB5286E-33E5-4EB3-98C9-68E8C093ECA8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CB334AE3-B2B4-4267-9863-BD1327DAD27E} = {CB334AE3-B2B4-4267-9863-BD1327DAD27E}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CB334AE3-B2B4-4267-9863-BD1327DAD27E}.Debug|x86.ActiveCfg = Debug|x86
+		{CB334AE3-B2B4-4267-9863-BD1327DAD27E}.Debug|x86.Build.0 = Debug|x86
+		{CB334AE3-B2B4-4267-9863-BD1327DAD27E}.Release|x86.ActiveCfg = Release|x86
+		{CB334AE3-B2B4-4267-9863-BD1327DAD27E}.Release|x86.Build.0 = Release|x86
+		{3EB5286E-33E5-4EB3-98C9-68E8C093ECA8}.Debug|x86.ActiveCfg = Debug|x86
+		{3EB5286E-33E5-4EB3-98C9-68E8C093ECA8}.Debug|x86.Build.0 = Debug|x86
+		{3EB5286E-33E5-4EB3-98C9-68E8C093ECA8}.Release|x86.ActiveCfg = Release|x86
+		{3EB5286E-33E5-4EB3-98C9-68E8C093ECA8}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
