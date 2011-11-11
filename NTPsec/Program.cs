@@ -7,6 +7,9 @@ using System.Threading;
 using System.Net.Sockets;
 using EI.SI;
 using System.Net;
+using System.IO;
+using System.Security.Cryptography;
+using System.Xml;
 
 namespace NTPsec
 {
@@ -38,11 +41,17 @@ namespace NTPsec
                 NetworkStream stream = null;
                 ProtocolSI protocol = null;
                 byte[] msg;
+                byte[] clearData;
+                byte[] cipherData;
+                byte[] hash;
+                byte[] signHash;
 
                 DateTime clientTime = DateTime.Now;
-                //SymmetricAlgorithm sa = null;
-                //RSACryptoServiceProvider rsaClient = null;
-                //RSACryptoServiceProvider rsaServer = null;
+                SymmetricAlgorithm sa = null;
+                SymmetricsSI symmSI = null;
+                SHA1CryptoServiceProvider sha1 = null;
+                RSACryptoServiceProvider rsaClient = null;
+                RSACryptoServiceProvider rsaServer = null;
 
                 // TODO declarar aqui as variáveis necessárias para os protocolos de segurança
 
@@ -50,9 +59,11 @@ namespace NTPsec
 
             try
             {
+                
+
                 #region Start the console timer thread
 
-                    timerThread = new Thread(new ThreadStart(TimerUpdate));
+                timerThread = new Thread(new ThreadStart(TimerUpdate));
                     timerThread.Name = "Console Timer";
                     timerThread.Start();
 
@@ -69,17 +80,42 @@ namespace NTPsec
                     protocol = new ProtocolSI();
 
                     //    // Asymmetric Algorithm RSA
-                    //    rsaClient = new RSACryptoServiceProvider();
-                    //    rsaServer = new RSACryptoServiceProvider();
+                        rsaClient = new RSACryptoServiceProvider();
+                        rsaServer = new RSACryptoServiceProvider();
 
-
-                    //    // Symmmetric Algorithm (TDES)
-                    //    sa = TripleDESCryptoServiceProvider.Create();
+                        sha1 = new SHA1CryptoServiceProvider();
 
                     // TODO definir aqui os valores para as variáveis necessárias para os protocolos de segurança
 
                 #endregion
 
+                #region Read or Create the server Keys
+
+		    try{
+			if (File.Exists(@"serverPrivateKey.xml"))
+			{
+			    XmlDocument xmlPrivateKey = new XmlDocument();
+			    xmlPrivateKey.Load("serverPrivateKey.xml");
+			    rsaServer.FromXmlString(xmlPrivateKey.InnerXml);
+			}
+			else
+			{
+			    throw new Exception("Invalid key pairs");
+			}
+		    }catch(Exception){
+			// Create new files
+			    rsaServer = new RSACryptoServiceProvider();
+			    StreamWriter sw = new StreamWriter("serverPrivateKey.xml");
+			    sw.WriteLine(rsaServer.ToXmlString(true));
+			    sw.Close();
+
+			    // This file shoud be sent to clients
+			    sw = new StreamWriter("serverPublicKey.xml");
+			    sw.WriteLine(rsaServer.ToXmlString(false));
+			    sw.Close();
+		    }
+
+                #endregion
 
                 #region Start the TCP Listener
 
@@ -107,7 +143,86 @@ namespace NTPsec
                             stream = client.GetStream();
                             Write("OK" + Environment.NewLine);
 
-                            // TODO Inserir o código para fazer o handshake com o cliente. Colocando o código nesta àrea é possível gerir vários clientes em simultâneo.
+			    #region Generate new symmetric key
+
+				// Symmmetric Algorithm (TDES) & definitions
+				sa = TripleDESCryptoServiceProvider.Create();
+				sa.GenerateKey();
+				sa.GenerateIV();
+				sa.Mode = CipherMode.CBC;
+				sa.Padding = PaddingMode.PKCS7;
+
+				// create Encrytor/Decryptor
+				symmSI = new SymmetricsSI(sa);
+
+			    #endregion
+
+                            // Inserir o código para fazer o handshake com o cliente. Colocando o código nesta àrea é possível gerir vários clientes em simultâneo.
+                            #region Autentication (virtual  login)
+                                // Receive for Client Public Key
+                                Write("Receive Client Public Key...");
+                                stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                                rsaClient.FromXmlString(protocol.GetStringFromData());
+                                byte[] cypherKey = rsaClient.Encrypt(sa.Key, true);
+
+                                // server send the secret key
+                                msg = protocol.Make(ProtocolSICmdType.SECRET_KEY, cypherKey);
+                                stream.Write(msg, 0, msg.Length);
+
+                                // Receive ack from client
+                                stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                                if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
+                                {
+                                    client.Client.Disconnect(true);
+                                    WriteLine("Don't receive client key ack. Client disconnect!");
+                                    Console.ReadKey();
+                                    continue;
+                                }
+
+
+                                // server send key hash to client
+                                hash = sha1.ComputeHash(cypherKey);
+                                
+                                // Sign
+                                signHash = rsaServer.SignData(hash, sha1);
+                                msg = protocol.Make(ProtocolSICmdType.DIGITAL_SIGNATURE, signHash);
+                                stream.Write(msg, 0, msg.Length);
+
+                                // Server read another ack
+                                stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                                if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
+                                {
+                                    client.Client.Disconnect(true);
+                                    WriteLine("Don't receive client key hash don't match. Client disconnect!");
+                                    Console.ReadKey();
+                                    continue;
+                                }
+                                
+                                // server send the cipherIV
+                                byte[] cipherIV = rsaClient.Encrypt(sa.IV, true);
+                                msg = protocol.Make(ProtocolSICmdType.IV, cipherIV);
+                                stream.Write(msg, 0, msg.Length);
+
+                                // Server read another ack
+                                stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                                if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
+                                {
+                                    client.Client.Disconnect(true);
+                                    WriteLine("Don't receive client iv ack. Client disconnect!");
+                                    Console.ReadKey();
+                                    continue;
+                                }
+
+                                // server send iv hash to client
+                                hash = sha1.ComputeHash(cipherIV);
+                                signHash = rsaServer.SignData(hash, sha1);
+                                msg = protocol.Make(ProtocolSICmdType.DIGITAL_SIGNATURE, signHash);
+                                stream.Write(msg, 0, msg.Length);
+                                
+
+                                WriteLine("ok");
+                                
+                            #endregion
 
                         }
 
@@ -143,16 +258,36 @@ namespace NTPsec
 
                         try
                         {
-                            clientTime = new DateTime(Convert.ToInt64(protocol.GetStringFromData()));
+                            
+
+                            cipherData = protocol.GetData();
+                            clearData = symmSI.Decrypt(cipherData);
+
+                            // Send ack so client send HASH
+                            msg = protocol.Make(ProtocolSICmdType.ACK);
+                            stream.Write(msg, 0, msg.Length);
+
+                            stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                            hash = sha1.ComputeHash(cipherData);
+                            signHash =  protocol.GetData();
+
+                            bool result = rsaClient.VerifyData(hash, sha1, signHash);
+                            if (!result)
+                            {
+                                WriteLine("Invalid signature. Client connection was closed.");
+                                continue;
+                            }
+
+                            clientTime = new DateTime(Convert.ToInt64(ProtocolSI.ToString(clearData)));
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
                             client.Client.Disconnect(true);
 
-                            WriteLine("Invalid time. Client connection was closed.");
+                            WriteLine("Invalid time. Client connection was closed."+ex.Message);
                             continue;
                         }
-
+                        
                         WriteLine("Received a client with the time: " + clientTime.ToString("HH:mm:ss.f"));
 
                     #endregion
@@ -161,9 +296,34 @@ namespace NTPsec
 
                         // TODO calcular a hash, assinar e cifrar a mensagem
 
+                        // data
+                        clearData = Encoding.UTF8.GetBytes(DateTime.Now.Ticks.ToString());
+                        // Cypher data
+                        cipherData = symmSI.Encrypt(clearData);
+
                         Write("Sending the server time... ");
-                        msg = protocol.Make(ProtocolSICmdType.DATA, DateTime.Now.Ticks.ToString());
+                        msg = protocol.Make(ProtocolSICmdType.SYM_CIPHER_DATA, cipherData);
                         stream.Write(msg, 0, msg.Length);
+
+
+                        // Receive ack from client
+                        stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
+                        if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
+                        {
+                            client.Client.Disconnect(true);
+                            WriteLine("Don't receive client serverTime ack i will exit now");
+                            Console.ReadKey();
+                            continue;
+                        }
+
+                        // server send cipherData hash to client
+                        hash = sha1.ComputeHash(cipherData);
+                        signHash = rsaServer.SignData(hash, sha1);
+                        msg = protocol.Make(ProtocolSICmdType.DATA, signHash);
+                        stream.Write(msg, 0, msg.Length);
+
+
+
                         WriteLine("OK");
 
                     #endregion
@@ -210,7 +370,7 @@ namespace NTPsec
         {
             do
             {
-                Thread.Sleep(100);
+                Thread.Sleep(10);
                 lock (consoleLocker)
                 {
                     // Store the original cursor position
