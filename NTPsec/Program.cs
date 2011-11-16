@@ -173,7 +173,7 @@ namespace NTPsec
                                 stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
                                 if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
                                 {
-                                    client.Client.Disconnect(true);
+                                    client.Client.Close();
                                     WriteLine("Don't receive client key ack. Client disconnect!");
                                     Console.ReadKey();
                                     continue;
@@ -192,7 +192,7 @@ namespace NTPsec
                                 stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
                                 if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
                                 {
-                                    client.Client.Disconnect(true);
+                                    client.Client.Close();
                                     WriteLine("Don't receive client key hash don't match. Client disconnect!");
                                     Console.ReadKey();
                                     continue;
@@ -207,7 +207,7 @@ namespace NTPsec
                                 stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
                                 if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
                                 {
-                                    client.Client.Disconnect(true);
+                                    client.Client.Close();
                                     WriteLine("Don't receive client iv ack. Client disconnect!");
                                     Console.ReadKey();
                                     continue;
@@ -234,19 +234,19 @@ namespace NTPsec
 
                         if (stream.Read(protocol.Buffer, 0, protocol.Buffer.Length) <= 0)
                         {
-                            client.Client.Disconnect(true);
+                            client.Client.Close();
 
                             WriteLine("No data received. Client connection was closed.");
                             continue;
                         }
 
-                        #region Receive an ACK to close the client connection (optional)
+                        #region Receive an ACK to close the client connection (if needed)
 
                         // If we receive an ACK, the loop was completed and close the client connection
                         if (protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
                         {
-                            client.Client.Disconnect(true);
                             stream.Close();
+                            client.Client.Close();
                             client = null;
 
                             WriteLine("ACK received. The client is OK for now, connection was closed.");
@@ -282,7 +282,7 @@ namespace NTPsec
                         }
                         catch (Exception ex)
                         {
-                            client.Client.Disconnect(true);
+                            client.Client.Close();
 
                             WriteLine("Invalid time. Client connection was closed."+ex.Message);
                             continue;
@@ -310,7 +310,7 @@ namespace NTPsec
                         stream.Read(protocol.Buffer, 0, protocol.Buffer.Length);
                         if (!protocol.GetCmdType().Equals(ProtocolSICmdType.ACK))
                         {
-                            client.Client.Disconnect(true);
+                            client.Client.Close();
                             WriteLine("Don't receive client serverTime ack i will exit now");
                             Console.ReadKey();
                             continue;

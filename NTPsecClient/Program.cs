@@ -48,16 +48,23 @@ namespace NTPsecClient
             {
                 Console.WriteLine("CLIENT_WITH_PROTOCOLSI - TbPractico 1\n");
 
-                
-                
-                
-                
-                
+
+
+                IPAddress serverAddr;
+                string serverIP=null;
+                do
+                {
+                    Console.Write("Please insert a valid ip address: ");
+                    serverIP = Console.ReadLine();
+
+                } while (!IPAddress.TryParse(serverIP, out serverAddr));
+
+                Console.WriteLine("Trying to connect to " + serverIP + ":13000");
 
                 #region Variables initialization
 
                     // Server TCP/IP address and port
-                    IPAddress serverAddr = IPAddress.Parse("127.0.0.1");
+                    //serverAddr = IPAddress.Parse(serverIP);
                     int serverPort = 13000;
 
                     // Client/Server Protocol to SI
@@ -344,7 +351,19 @@ namespace NTPsecClient
                     DateTime setTime = new DateTime(serverTimeY.Ticks + (delay));
                     Console.WriteLine("Time to set: " + setTime.ToString("HH:mm:ss.f"));
 
-                    
+                    do
+                    {
+                        Thread.Sleep(10);
+                        // Store the original cursor position
+                        int left = Console.CursorLeft;
+                        int top = Console.CursorTop;
+                        Console.SetCursorPosition(0, 18);
+                        DateTime currentTime = new DateTime(DateTime.Now.Ticks + (offset));
+                        Console.WriteLine(currentTime.ToString("HH:mm:ss.f"));
+                        Console.SetCursorPosition(left, top);
+                        //Console.WriteLine("End: Press a key...");
+
+                    } while (!Console.KeyAvailable);
 
                 #endregion
             }
@@ -367,22 +386,7 @@ namespace NTPsecClient
                 Console.WriteLine(Environment.NewLine + "Connection with server was closed!" + Environment.NewLine);
             }
 
-            do
-            {
-                Thread.Sleep(10);
-                // Store the original cursor position
-                int left = Console.CursorLeft;
-                int top = Console.CursorTop;
-                Console.SetCursorPosition(0, 18);
-                DateTime currentTime = new DateTime(DateTime.Now.Ticks + (offset));
-                Console.WriteLine(currentTime.ToString("HH:mm:ss.f"));
-                Console.SetCursorPosition(left, top);
-                //Console.WriteLine("End: Press a key...");
-
-            } while (!Console.KeyAvailable);
-
-            //Console.WriteLine("End: Press a key...");
-            //Console.ReadKey();
+            Console.ReadKey();
         }
 
         /// <summary>
