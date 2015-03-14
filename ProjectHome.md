@@ -1,1 +1,0 @@
-Implementation of a secure client-server clock synchronization system based on TCP, using C#. To ensure security, integrity, authenticity and authorization in the data exchange protocol, an additional security layer was implemented at the application level.
